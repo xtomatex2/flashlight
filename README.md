@@ -23,6 +23,10 @@ This project contains a Lua script for FiveM to control vehicle blinkers.
 - ⚙️ `config.lua` - Central configuration
 - 🎵 `html/` - NUI audio interface with WAV files
 
+### 🎵 **Sound Files:**
+
+Sound files source: https://www.gta5-mods.com/scripts/advanced-turn-signals
+
 ### 💝 **Support the developer:**
 
 [![PayPal](https://img.shields.io/badge/PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/aleksanderneumaier)
@@ -51,6 +55,10 @@ Dieses Projekt enthält ein Lua-Script für FiveM, um Fahrzeug-Blinker zu steuer
 - 🖥️ `server.lua` - Server-seitige StateBag-Synchronisation
 - ⚙️ `config.lua` - Zentrale Konfiguration
 - 🎵 `html/` - NUI-Audio-Interface mit WAV-Dateien
+
+### 🎵 **Sound-Dateien:**
+
+Sound-Dateien Quelle: https://www.gta5-mods.com/scripts/advanced-turn-signals
 
 ### 💝 **Entwickler unterstützen:**
 
