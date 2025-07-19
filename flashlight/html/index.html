@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Blinker Sound NUI</title>
+</head>
+<body>
+<script>
+let currentAudio = null;
+let defaultVolume = 0.5;
+let audioContext = null;
+let isAudioInitialized = false;
+let indicatorInterval = null;
+let indicatorAudio = null;
+let debugEnabled = false; // Debug-Modus (wird von Lua gesetzt)
+
+// Debug-Funktion
+function debugLog(message) {
+  if (debugEnabled) {
+    console.log('[Blinker Audio]', message);
+  }
+}
+
+// Audio Context initialisieren
+function initializeAudioContext() {
+  if (isAudioInitialized && audioContext && audioContext.state !== 'suspended') {
+    return;
+  }
+  
+  try {
+    // AudioContext für bessere Browser-Kompatibilität
+    window.AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (window.AudioContext) {
+      if (!audioContext) {
+        audioContext = new AudioContext();
+      }
+      
+      // Audio Context entsperren
+      if (audioContext.state === 'suspended') {
+        audioContext.resume().then(() => {
+          debugLog('Audio Context entsperrt');
+          isAudioInitialized = true;
+        });
+      } else {
+        isAudioInitialized = true;
+      }
+    }
+    
+    debugLog('Audio Context initialisiert, Status: ' + (audioContext ? audioContext.state : 'keine AudioContext'));
+  } catch (error) {
+    debugLog('AudioContext Initialisierung fehlgeschlagen: ' + error);
+    isAudioInitialized = true; // Trotzdem als initialisiert markieren
+  }
+}
+
+function stopAllSounds() {
+  // Nur normale Sounds stoppen, nicht den Indikator-Loop
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+    currentAudio = null;
+  }
+  
+  // Indikator-Loop NICHT hier stoppen - der läuft separat
+}
+
+function playSound(soundFile, volume = defaultVolume) {
+  try {
+    // Audio Context initialisieren falls nötig
+    if (!isAudioInitialized) {
+      initializeAudioContext();
+    }
+    
+    stopAllSounds();
+    currentAudio = new Audio(soundFile);
+    currentAudio.volume = Math.max(0, Math.min(1, volume));
+    
+    // Bessere Event-Handler für Debugging
+    currentAudio.addEventListener('canplay', function() {
+      debugLog('Audio bereit zum Abspielen: ' + soundFile);
+    });
+    
+    currentAudio.addEventListener('error', function(e) {
+      console.log('Audio Fehler:', e.target.error); // Fehler immer anzeigen
+    });
+    
+    // Preload setzen
+    currentAudio.preload = 'auto';
+    
+    // Play mit besserer Fehlerbehandlung
+    const playPromise = currentAudio.play();
+    
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          debugLog('Audio erfolgreich gestartet: ' + soundFile);
+        })
+        .catch(error => {
+          console.log('Audio Play Fehler für', soundFile, ':', error.name, error.message);
+          
+          // Fallback: Versuche es nach kurzer Verzögerung nochmal
+          setTimeout(() => {
+            if (currentAudio && !currentAudio.paused) return;
+            
+            try {
+              currentAudio.play().catch(e => {
+                console.log('Zweiter Audio-Versuch fehlgeschlagen:', e.name);
+              });
+            } catch (e) {
+              console.log('Fallback Audio-Versuch fehlgeschlagen:', e);
+            }
+          }, 100);
+        });
+    }
+  } catch (error) {
+    console.log('Audio Erstellung fehlgeschlagen:', error);
+  }
+}
+
+function startIndicatorLoop(soundFile, volume, interval) {
+  try {
+    // Vorherige Loop stoppen
+    stopIndicatorLoop();
+    
+    debugLog('Starte Indikator-Loop: ' + soundFile + ' Intervall: ' + interval + 'ms');
+    
+    // Audio-Objekt erstellen
+    indicatorAudio = new Audio(soundFile);
+    indicatorAudio.volume = Math.max(0, Math.min(1, volume));
+    indicatorAudio.preload = 'auto';
+    
+    // Audio Context für Browser-Kompatibilität
+    if (!isAudioInitialized) {
+      initializeAudioContext();
+    }
+    
+    // Audio Context entsperren falls nötig
+    if (audioContext && audioContext.state === 'suspended') {
+      audioContext.resume();
+    }
+    
+    // Loop-Funktion
+    function playIndicatorTick() {
+      if (indicatorAudio) {
+        indicatorAudio.currentTime = 0;
+        
+        const playPromise = indicatorAudio.play();
+        
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              debugLog('Indikator Tick erfolgreich gespielt');
+            })
+            .catch(e => {
+              console.log('Indikator Audio Fehler:', e.name, e.message);
+              
+              // Fallback: Nach kurzer Pause erneut versuchen
+              setTimeout(() => {
+                if (indicatorAudio && indicatorInterval) {
+                  try {
+                    indicatorAudio.currentTime = 0;
+                    indicatorAudio.play().catch(err => {
+                      console.log('Fallback Versuch fehlgeschlagen:', err.name);
+                    });
+                  } catch (fallbackError) {
+                    console.log('Fallback Fehler:', fallbackError);
+                  }
+                }
+              }, 50);
+            });
+        }
+      }
+    }
+    
+    // Ersten Tick sofort spielen
+    playIndicatorTick();
+    
+    // Interval für weitere Ticks
+    indicatorInterval = setInterval(playIndicatorTick, interval);
+    
+  } catch (error) {
+    console.log('Indikator-Loop Start Fehler:', error);
+  }
+}
+
+function stopIndicatorLoop() {
+  if (indicatorInterval) {
+    clearInterval(indicatorInterval);
+    indicatorInterval = null;
+    debugLog('Indikator-Loop gestoppt');
+  }
+  
+  if (indicatorAudio) {
+    indicatorAudio.pause();
+    indicatorAudio.currentTime = 0;
+    indicatorAudio = null;
+  }
+}
+
+// Event Listener für Nachrichten vom Client
+window.addEventListener('message', function(event) {
+  const data = event.data;
+  console.log('NUI Message erhalten:', data);
+  
+  // Audio Context aggressiv entsperren bei jeder Nachricht
+  try {
+    if (!isAudioInitialized || (audioContext && audioContext.state === 'suspended')) {
+      initializeAudioContext();
+    }
+    
+    // Zusätzlicher Entsperrungsversuch
+    if (audioContext && audioContext.state === 'suspended') {
+      audioContext.resume().catch(e => {
+        console.log('Audio Context Resume fehlgeschlagen:', e);
+      });
+    }
+  } catch (e) {
+    console.log('Audio Context Entsperrung fehlgeschlagen:', e);
+  }
+  
+  if (data.action === 'playSound') {
+    const volume = data.volume !== undefined ? data.volume : defaultVolume;
+    playSound(data.sound, volume);
+  }
+  
+  if (data.action === 'startIndicatorLoop') {
+    const volume = data.volume !== undefined ? data.volume : defaultVolume;
+    const interval = data.interval || 500;
+    startIndicatorLoop(data.sound, volume, interval);
+  }
+  
+  if (data.action === 'stopIndicatorLoop') {
+    stopIndicatorLoop();
+  }
+  
+  if (data.action === 'setVolume') {
+    defaultVolume = Math.max(0, Math.min(1, data.volume || 0.5));
+  }
+  
+  if (data.action === 'setDebug') {
+    debugEnabled = data.enabled || false;
+    debugLog('Debug-Modus ' + (debugEnabled ? 'aktiviert' : 'deaktiviert'));
+  }
+  
+  if (data.action === 'stopSound') {
+    stopAllSounds();
+  }
+  
+  if (data.action === 'initAudio') {
+    initializeAudioContext();
+  }
+  
+  // Legacy Support für alte Events
+  if (data.type === 'play_hazard') {
+    playSound('HAZARD_BUTTON.wav', defaultVolume);
+  }
+  if (data.type === 'play_intro') {
+    playSound('TURN_LEVER_INTRO.wav', defaultVolume);
+  }
+  if (data.type === 'play_outro') {
+    playSound('TURN_LEVER_OUTRO.wav', defaultVolume);
+  }
+  if (data.type === 'start_indicator') {
+    playSound('INDICATOR_SOUND.wav', defaultVolume);
+  }
+  if (data.type === 'stop_indicator') {
+    stopAllSounds();
+  }
+  if (data.type === 'set_volume') {
+    defaultVolume = Math.max(0, Math.min(1, data.value || 0.5));
+  }
+});
+
+// Auto-Initialisierung beim Laden
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('Blinker NUI Interface geladen');
+  initializeAudioContext();
+  
+  // Preload alle Audio-Dateien
+  const sounds = ['HAZARD_BUTTON.wav', 'INDICATOR_SOUND.wav', 'TURN_LEVER_INTRO.wav', 'TURN_LEVER_OUTRO.wav'];
+  sounds.forEach(sound => {
+    const audio = new Audio(sound);
+    audio.preload = 'auto';
+    audio.load();
+  });
+});
+
+// Zusätzliche Initialisierung
+setTimeout(() => {
+  if (!isAudioInitialized) {
+    initializeAudioContext();
+  }
+}, 1000);
+</script>
+</body>
+</html>
