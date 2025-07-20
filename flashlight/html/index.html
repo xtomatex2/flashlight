@@ -200,7 +200,7 @@ function stopIndicatorLoop() {
 // Event Listener für Nachrichten vom Client
 window.addEventListener('message', function(event) {
   const data = event.data;
-  console.log('NUI Message erhalten:', data);
+  debugLog('NUI Message erhalten: ' + JSON.stringify(data));
   
   // Audio Context aggressiv entsperren bei jeder Nachricht
   try {
@@ -273,7 +273,7 @@ window.addEventListener('message', function(event) {
 
 // Auto-Initialisierung beim Laden
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('Blinker NUI Interface geladen');
+  debugLog('Blinker NUI Interface geladen');
   initializeAudioContext();
   
   // Preload alle Audio-Dateien

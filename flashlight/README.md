@@ -110,27 +110,6 @@ The script offers two modes for automatic turn-off:
 **Curve Detection**: When the steering angle exceeds the threshold (15°)  
 **Important**: Works at any speed, even when stationary or driving in reverse.
 
-## Blinker Timing System
-
-The script offers flexible timing options:
-
-### ⚙️ Custom Timing (`customTiming = true`)
-- **Full control** over the blink interval
-- Configurable from 100ms to 2000ms
-- **Synchronized**: Visual blinkers and sounds perfectly matched
-- Ideal for: Customized server settings
-
-### 🎮 GTA Standard (`customTiming = false`)
-- Uses **GTA's built-in** blinker timing
-- About 500ms interval (like normal GTA vehicles)
-- Less configuration needed
-- Ideal for: Keeping standard GTA feeling
-
-**Examples**:
-- `interval = 300` → Fast, sporty blinkers
-- `interval = 750` → Slow, realistic blinkers
-- `interval = 1000` → Very slow truck-like blinkers
-
 ## Permission System
 
 The script offers two modes for blinker operation:
@@ -174,7 +153,7 @@ The script offers an intelligent sound system:
 ## Files
 
 - `client.lua` - Client-side logic with auto-turn-off system
-- `server.lua` - Server-side StateBag synchronization
+- `server.lua` - Server-side Event synchronization
 - `config.lua` - Central configuration file
 - `fxmanifest.lua` - Resource definition
 - `html/index.html` - NUI audio interface for WAV playback
@@ -182,7 +161,7 @@ The script offers an intelligent sound system:
 
 ## Technical Details
 
-- **StateBags**: Optimized real-time synchronization between clients
+- **Event System**: Optimized real-time synchronization between clients
 - **NUI Audio**: Browser-based WAV playback for best sound quality
 - **Vehicle Class Filter**: Supports only ground vehicles (no planes/boats)
 - **Driver Seat Detection**: Prevents misuse by passengers
@@ -191,7 +170,7 @@ The script offers an intelligent sound system:
 ## Compatibility
 
 - Works with all standard FiveM servers
-- Uses StateBags for optimal performance
+- Uses GTA's native blinker system for optimal performance
 - Compatible with other vehicle scripts
 - No conflicts with standard GTA V blinker system
 
@@ -199,13 +178,18 @@ The script offers an intelligent sound system:
 
 For issues or questions, please create an issue or contact the developer.
 
-### 💝 Support the Developer
+## 📝 Community & Development
 
-If you like this script and want to support further development:
+🔧 **Free to Modify** - Feel free to extend, modify or improve this script  
+🐛 **Bug Reports Welcome** - I collect bugs and appreciate feedback  
+⚠️ **No Official Support** - Community-driven development  
+💬 **Feedback Appreciated** - Share your thoughts and improvements  
+
+### 💝 Support the Developer
 
 [![PayPal](https://img.shields.io/badge/PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/aleksanderneumaier)
 
-**[💰 Donate via PayPal](https://paypal.me/aleksanderneumaier)**
+*If you like this script and want to support my work, I would appreciate a small donation! ☕*
 
 ---
 
@@ -315,27 +299,6 @@ Das Script bietet zwei Modi für das automatische Ausschalten:
 **Kurven-Erkennung**: Wenn der Lenkwinkel über den Schwellenwert (15°) geht  
 **Wichtig**: Funktioniert bei jeder Geschwindigkeit, auch im Stand oder bei Rückwärtsfahrt.
 
-## Blinker-Timing System
-
-Das Script bietet flexible Timing-Optionen:
-
-### ⚙️ Eigenes Timing (`customTiming = true`)
-- **Vollständige Kontrolle** über das Blink-Intervall
-- Konfigurierbar von 100ms bis 2000ms
-- **Synchron**: Visuelle Blinker und Sounds perfekt abgestimmt
-- Ideal für: Angepasste Server-Einstellungen
-
-### 🎮 GTA Standard (`customTiming = false`)
-- Verwendet **GTA's eingebautes** Blinker-Timing
-- Etwa 500ms Intervall (wie normale GTA Fahrzeuge)
-- Weniger Konfiguration nötig
-- Ideal für: Standard GTA-Feeling beibehalten
-
-**Beispiele**:
-- `interval = 300` → Schnelle, sportliche Blinker
-- `interval = 750` → Langsame, realistische Blinker
-- `interval = 1000` → Sehr langsame LKW-ähnliche Blinker
-
 ## Berechtigung System
 
 Das Script bietet zwei Modi für die Blinker-Bedienung:
@@ -379,7 +342,7 @@ Das Script bietet ein intelligentes Sound-System:
 ## Dateien
 
 - `client.lua` - Client-seitige Logik mit Auto-Turn-Off System
-- `server.lua` - Server-seitige StateBag-Synchronisation  
+- `server.lua` - Server-seitige Event-Synchronisation  
 - `config.lua` - Zentrale Konfigurationsdatei
 - `fxmanifest.lua` - Resource-Definition
 - `html/index.html` - NUI Audio-Interface für WAV-Wiedergabe
@@ -387,7 +350,7 @@ Das Script bietet ein intelligentes Sound-System:
 
 ## Technische Details
 
-- **StateBags**: Optimierte Echtzeit-Synchronisation zwischen Clients
+- **Event System**: Optimierte Echtzeit-Synchronisation zwischen Clients
 - **NUI Audio**: Browser-basierte WAV-Wiedergabe für beste Sound-Qualität
 - **Fahrzeugklassen-Filter**: Unterstützt nur Bodenfahrzeuge (keine Flugzeuge/Boote)
 - **Fahrersitz-Erkennung**: Verhindert Missbrauch durch Beifahrer
@@ -396,7 +359,7 @@ Das Script bietet ein intelligentes Sound-System:
 ## Kompatibilität
 
 - Funktioniert mit allen Standard FiveM Servern
-- Verwendet StateBags für optimale Performance
+- Verwendet GTA's natives Blinker-System für optimale Performance
 - Kompatibel mit anderen Vehicle-Scripts
 - Keine Konflikte mit Standard GTA V Blinker-System
 
@@ -404,13 +367,18 @@ Das Script bietet ein intelligentes Sound-System:
 
 Bei Problemen oder Fragen, bitte ein Issue erstellen oder den Entwickler kontaktieren.
 
-### 💝 Entwickler unterstützen
+## 📝 Community & Entwicklung
 
-Wenn dir dieses Script gefällt und du die weitere Entwicklung unterstützen möchtest:
+🔧 **Frei Modifizierbar** - Du darfst das Script erweitern, ändern oder verbessern  
+🐛 **Bug Reports Willkommen** - Ich sammle Fehlerberichte und schätze Feedback  
+⚠️ **Kein Offizieller Support** - Community-gesteuerte Entwicklung  
+💬 **Feedback Geschätzt** - Teile deine Gedanken und Verbesserungen mit  
+
+### 💝 Entwickler unterstützen
 
 [![PayPal](https://img.shields.io/badge/PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/aleksanderneumaier)
 
-**[💰 Spenden via PayPal](https://paypal.me/aleksanderneumaier)**
+*Wenn dir das Script gefällt und du meine Arbeit unterstützen möchtest, würde ich mich über eine kleine Spende freuen! ☕*
 
 ---
 **Version:** 2.0.0  

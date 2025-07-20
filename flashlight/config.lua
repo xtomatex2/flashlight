@@ -2,6 +2,7 @@
 -- FiveM Blinker Script - Konfiguration / Configuration
 -- Author: xtomatex2
 -- Version: 2.0.0
+-- Sound files source: https://www.gta5-mods.com/scripts/advanced-turn-signals
 -- ===========================================
 
 Config = {}
@@ -23,8 +24,6 @@ Config.Sound = {
 
 -- ========== BLINKER EINSTELLUNGEN / BLINKER SETTINGS ==========
 Config.Blinker = {
-    customTiming = true,        -- Eigenes Blink-Timing verwenden (true) oder GTA Standard (false) / Use custom blink timing (true) or GTA standard (false)
-    interval = 500,             -- Blink-Intervall in Millisekunden (nur wenn customTiming = true) / Blink interval in milliseconds (only if customTiming = true)
     autoTurnOff = {
         enabled = true,         -- Automatisches Ausschalten nach Kurven / Automatic turn-off after curves
         steeringThreshold = 15, -- Lenkwinkel-Schwellenwert / Steering angle threshold
@@ -106,17 +105,16 @@ Config.Language = {
 
 -- ========== DEBUG EINSTELLUNGEN / DEBUG SETTINGS ==========
 Config.Debug = {
-    enabled = true,             -- Debug-Modus aktiviert / Debug mode enabled
-    showStateChanges = true,    -- State-Änderungen in Console anzeigen / Show state changes in console
+    enabled = false,            -- Debug-Modus aktiviert / Debug mode enabled
     showVehicleInfo = false,    -- Fahrzeug-Informationen anzeigen (nur bei Änderungen > 5°) / Show vehicle information (only on changes > 5°)
-    showSteeringDetails = false -- Detaillierte Lenkwinkel-Infos (kann spammy sein) / Detailed steering angle info (can be spammy)
-}
-
--- ========== ERWEITERTE EINSTELLUNGEN / ADVANCED SETTINGS ==========
-Config.Advanced = {
-    syncInterval = 100,         -- StateBag Sync-Intervall in ms / StateBag sync interval in ms
-    maxSyncDistance = 500.0,    -- Maximale Sync-Distanz in GTA-Einheiten / Maximum sync distance in GTA units
-    enableStateBags = true      -- StateBag-System aktiviert / StateBag system enabled
+    showSteeringDetails = false, -- Detaillierte Lenkwinkel-Infos (kann spammy sein) / Detailed steering angle info (can be spammy)
+    showNUIMessages = false,    -- NUI Debug-Nachrichten anzeigen / Show NUI debug messages
+    server = {
+        enabled = false,        -- Server Debug-Messages aktiviert / Server debug messages enabled
+        showSync = false,       -- Blinker-Synchronisation Messages / Blinker sync messages
+        showSound = false,      -- Sound-Synchronisation Messages / Sound sync messages
+        showRequests = false    -- Status-Anfragen Messages / Status request messages
+    }
 }
 
 return Config
