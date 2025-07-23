@@ -464,36 +464,6 @@ end
 
 -- Aktive Blinker-Threads für andere Fahrzeuge verwalten
 local activeBlinkerThreads = {}
-local lastVehicleStates = {} -- Cache für Fahrzeugstatus
-
--- Regelmäßige Synchronisation für alle Fahrzeuge in der Nähe
-Citizen.CreateThread(function()
-    while true do
-        -- Alle Fahrzeuge in einem Radius von 100 Metern prüfen
-        local playerPed = PlayerPedId()
-        local playerPos = GetEntityCoords(playerPed)
-        local allVehicles = GetGamePool('CVehicle')
-        
-        for _, vehicle in ipairs(allVehicles) do
-            if DoesEntityExist(vehicle) and vehicle ~= currentVehicle then
-                local vehPos = GetEntityCoords(vehicle)
-                local distance = #(playerPos - vehPos)
-                
-                -- Nur Fahrzeuge in 100m Umkreis prüfen
-                if distance <= 100.0 then
-                    local vehNetId = GetSafeNetworkId(vehicle)
-                    if vehNetId then
-                        -- Status des Fahrzeugs vom Server anfragen
-                        TriggerServerEvent('blinker:requestVehicleStatusSync', vehNetId)
-                    end
-                end
-            end
-        end
-        
-        -- Alle 2 Sekunden prüfen
-        Citizen.Wait(2000)
-    end
-end)
 
 -- Event für Blinker-Updates von anderen Spielern empfangen
 RegisterNetEvent('blinker:updateBlinkers')
@@ -513,13 +483,12 @@ AddEventHandler('blinker:updateBlinkers', function(vehNetId, leftBlinker, rightB
         return
     end
     
-    -- Prüfen ob es das eigene Fahrzeug ist (neue Logik für Status-Update)
+    -- Prüfen ob es das eigene Fahrzeug ist (Status-Update für Mitfahrer)
     if currentVehicle and vehicle == currentVehicle then
         DebugPrint(string.format("Update für eigenes Fahrzeug %d empfangen - Status synchronisieren", vehicle))
         
         -- Eigenen Blinker-Status aktualisieren wenn wir keine Kontrolle haben
         if not canControlBlinkers then
-            local wasAnyActive = blinkerState.left or blinkerState.right or blinkerState.hazard
             blinkerState.left = leftBlinker
             blinkerState.right = rightBlinker
             blinkerState.hazard = hazardLights
@@ -527,12 +496,10 @@ AddEventHandler('blinker:updateBlinkers', function(vehNetId, leftBlinker, rightB
             -- Sound-Status entsprechend anpassen
             local isAnyActive = leftBlinker or rightBlinker or hazardLights
             if isAnyActive and not lastSoundState then
-                -- Blinker wurde aktiviert - Sound-Loop starten
                 ControlIndicatorSound(true, false)
                 lastSoundState = true
                 DebugPrint("Sound-Loop für empfangenen Status gestartet")
             elseif not isAnyActive and lastSoundState then
-                -- Blinker wurde deaktiviert - Sound-Loop stoppen
                 ControlIndicatorSound(false, false)
                 lastSoundState = false
                 DebugPrint("Sound-Loop für empfangenen Status gestoppt")
@@ -541,63 +508,103 @@ AddEventHandler('blinker:updateBlinkers', function(vehNetId, leftBlinker, rightB
         return
     end
     
-    DebugPrint(string.format("Blinker-Update empfangen: Fahrzeug %d (NetID %d) von Spieler %d - Links=%s, Rechts=%s, Hazard=%s", 
-        vehicle, vehNetId, senderPlayerId, tostring(leftBlinker), tostring(rightBlinker), tostring(hazardLights)))
+    -- Für andere Fahrzeuge: Einfache visuelle Synchronisation
+    DebugPrint(string.format("Blinker-Update für anderes Fahrzeug %d (NetID %d) - Links=%s, Rechts=%s, Hazard=%s", 
+        vehicle, vehNetId, tostring(leftBlinker), tostring(rightBlinker), tostring(hazardLights)))
     
-    -- Wenn keine Blinker aktiv sind, Thread stoppen
-    if not leftBlinker and not rightBlinker and not hazardLights then
+    -- Bestehenden Thread stoppen
+    if activeBlinkerThreads[vehicle] then
         activeBlinkerThreads[vehicle] = false
+    end
+    
+    -- Wenn keine Blinker aktiv sind, ausschalten und fertig
+    if not leftBlinker and not rightBlinker and not hazardLights then
         SetVehicleIndicatorLights(vehicle, 0, false)
         SetVehicleIndicatorLights(vehicle, 1, false)
-        DebugPrint(string.format("Blinker für Fahrzeug %d ausgeschaltet", vehicle))
+        DebugPrint(string.format("Blinker für anderes Fahrzeug %d ausgeschaltet", vehicle))
         return
     end
     
-    -- Nur einen Thread pro Fahrzeug erlauben
-    if activeBlinkerThreads[vehicle] then 
-        DebugPrint(string.format("Thread für Fahrzeug %d läuft bereits", vehicle))
-        return 
-    end
+    -- Neuen Thread für Blinker-Animation starten
     activeBlinkerThreads[vehicle] = true
+    DebugPrint(string.format("Starte Blinker-Thread für anderes Fahrzeug %d", vehicle))
     
-    DebugPrint(string.format("Starte Blinker-Thread für Fahrzeug %d", vehicle))
-    
-    -- Lokale Kopie der Blinker-Status für den Thread
-    local threadLeft = leftBlinker
-    local threadRight = rightBlinker
-    local threadHazard = hazardLights
-    
-    -- Andere Fahrzeuge blinken lassen
     Citizen.CreateThread(function()
         local lastBlinkState = true
         local lastToggleTime = GetGameTimer()
         
-        while activeBlinkerThreads[vehicle] and DoesEntityExist(vehicle) and (threadLeft or threadRight or threadHazard) do
-            -- Einfaches 500ms Blinktiming für andere Fahrzeuge
+        while activeBlinkerThreads[vehicle] and DoesEntityExist(vehicle) do
+            -- 500ms Blinktiming
             local currentTime = GetGameTimer()
             if currentTime - lastToggleTime >= 500 then
                 lastBlinkState = not lastBlinkState
                 lastToggleTime = currentTime
             end
             
-            if threadHazard then
+            -- Blinker setzen
+            if hazardLights then
                 SetVehicleIndicatorLights(vehicle, 0, lastBlinkState) -- Rechts
                 SetVehicleIndicatorLights(vehicle, 1, lastBlinkState) -- Links
             else
-                SetVehicleIndicatorLights(vehicle, 0, threadRight and lastBlinkState) -- Rechts
-                SetVehicleIndicatorLights(vehicle, 1, threadLeft and lastBlinkState)  -- Links
+                SetVehicleIndicatorLights(vehicle, 0, rightBlinker and lastBlinkState) -- Rechts
+                SetVehicleIndicatorLights(vehicle, 1, leftBlinker and lastBlinkState)  -- Links
             end
             
-            -- Optimiertes Sync-Intervall: 50ms für flüssiges Blinken
             Citizen.Wait(50)
         end
         
-        -- Thread beendet - Blinker ausschalten und Status zurücksetzen
-        activeBlinkerThreads[vehicle] = false
+        -- Thread beendet - Blinker ausschalten
         SetVehicleIndicatorLights(vehicle, 0, false)
         SetVehicleIndicatorLights(vehicle, 1, false)
-        DebugPrint(string.format("Blinker-Thread für Fahrzeug %d beendet", vehicle))
+        DebugPrint(string.format("Blinker-Thread für anderes Fahrzeug %d beendet", vehicle))
     end)
+end)
+
+-- Event um Status von anderem Spieler zu empfangen (beim Einsteigen)
+RegisterNetEvent('blinker:receiveCurrentState')
+AddEventHandler('blinker:receiveCurrentState', function(vehNetId, leftBlinker, rightBlinker, hazardLights)
+    local vehicle = NetworkGetEntityFromNetworkId(vehNetId)
+    if not DoesEntityExist(vehicle) or vehicle ~= currentVehicle then return end
+    
+    DebugPrint(string.format("Empfange aktuellen Status beim Einsteigen: Links=%s, Rechts=%s, Hazard=%s", 
+        tostring(leftBlinker), tostring(rightBlinker), tostring(hazardLights)))
+    
+    -- Status immer aktualisieren (egal ob Kontrolle oder nicht)
+    local previousState = {
+        left = blinkerState.left,
+        right = blinkerState.right,
+        hazard = blinkerState.hazard
+    }
+    
+    blinkerState.left = leftBlinker
+    blinkerState.right = rightBlinker
+    blinkerState.hazard = hazardLights
+    
+    -- Sound entsprechend anpassen
+    local isAnyActive = leftBlinker or rightBlinker or hazardLights
+    local wasAnyActive = previousState.left or previousState.right or previousState.hazard
+    
+    if isAnyActive and not lastSoundState then
+        ControlIndicatorSound(true, false) -- Kein Sync beim Einsteigen
+        lastSoundState = true
+        DebugPrint("Sound-Loop für bestehende Blinker gestartet")
+    elseif not isAnyActive and lastSoundState then
+        ControlIndicatorSound(false, false)
+        lastSoundState = false
+        DebugPrint("Sound-Loop gestoppt - keine aktiven Blinker")
+    end
+    
+    -- Zusätzliche Sicherheit: Sound immer starten wenn Blinker aktiv sind
+    if isAnyActive then
+        ControlIndicatorSound(true, false)
+        lastSoundState = true
+        DebugPrint("Sound-Loop Sicherheits-Start für aktive Blinker")
+    end
+    
+    -- Wenn wir keine Kontrolle haben, aber Blinker aktiv sind, können wir diese nicht ändern
+    if not canControlBlinkers and isAnyActive then
+        DebugPrint("Status empfangen - keine Kontrolle, aber Blinker sind aktiv")
+    end
 end)
 
 -- Event um aktuellen Status mit neuem Spieler zu teilen
@@ -609,128 +616,20 @@ AddEventHandler('blinker:shareCurrentState', function(newPlayerId, vehNetId)
     if not currentVehNetId or currentVehNetId ~= vehNetId then return end
     
     -- Aktuellen Status an neuen Spieler senden
-    DebugPrint(string.format("Teile aktuellen Blinker-Status mit Spieler %d", newPlayerId))
+    DebugPrint(string.format("Teile aktuellen Blinker-Status mit Spieler %d: Links=%s, Rechts=%s, Hazard=%s", 
+        newPlayerId, tostring(blinkerState.left), tostring(blinkerState.right), tostring(blinkerState.hazard)))
     TriggerServerEvent('blinker:sendStateToPlayer', newPlayerId, vehNetId, blinkerState.left, blinkerState.right, blinkerState.hazard)
 end)
 
--- Event um Status für entfernte Fahrzeuge zu teilen
-RegisterNetEvent('blinker:shareVehicleStatus')
-AddEventHandler('blinker:shareVehicleStatus', function(requesterId, vehNetId)
-    if not currentVehicle or not canControlBlinkers then return end
+-- Hilfsfunktion um zu prüfen ob Fahrzeug bereits Blinker aktiv hat
+local function CheckVehicleIndicatorLights(vehicle)
+    if not vehicle or not DoesEntityExist(vehicle) then return false, false, false end
     
-    local currentVehNetId = GetSafeNetworkId(currentVehicle)
-    if not currentVehNetId or currentVehNetId ~= vehNetId then return end
-    
-    -- Aktuellen Status an anfragenden Spieler senden
-    DebugPrint(string.format("Teile Fahrzeugstatus mit Spieler %d", requesterId))
-    TriggerServerEvent('blinker:shareVehicleStatus', requesterId, vehNetId, blinkerState.left, blinkerState.right, blinkerState.hazard)
-end)
-
--- Event um Status von anderem Spieler zu empfangen
-RegisterNetEvent('blinker:receiveCurrentState')
-AddEventHandler('blinker:receiveCurrentState', function(vehNetId, leftBlinker, rightBlinker, hazardLights)
-    local vehicle = NetworkGetEntityFromNetworkId(vehNetId)
-    if not DoesEntityExist(vehicle) or vehicle ~= currentVehicle then return end
-    
-    DebugPrint(string.format("Empfange aktuellen Status: Links=%s, Rechts=%s, Hazard=%s", 
-        tostring(leftBlinker), tostring(rightBlinker), tostring(hazardLights)))
-    
-    -- Status aktualisieren wenn wir keine Kontrolle haben
-    if not canControlBlinkers then
-        blinkerState.left = leftBlinker
-        blinkerState.right = rightBlinker
-        blinkerState.hazard = hazardLights
-        
-        -- Sound entsprechend starten
-        local isAnyActive = leftBlinker or rightBlinker or hazardLights
-        if isAnyActive then
-            ControlIndicatorSound(true, false) -- Kein Sync beim Einsteigen
-            lastSoundState = true
-            DebugPrint("Sound-Loop für bestehende Blinker gestartet")
-        end
-    end
-end)
-
--- Event für Status-Synchronisation von entfernten Fahrzeugen
-RegisterNetEvent('blinker:syncVehicleStatus')
-AddEventHandler('blinker:syncVehicleStatus', function(vehNetId, leftBlinker, rightBlinker, hazardLights, senderPlayerId)
-    local vehicle = NetworkGetEntityFromNetworkId(vehNetId)
-    if not DoesEntityExist(vehicle) then return end
-    
-    -- Ignoriere eigenes Fahrzeug
-    if currentVehicle and vehicle == currentVehicle then return end
-    
-    DebugPrint(string.format("Status-Sync empfangen: Fahrzeug %d (NetID %d) - Links=%s, Rechts=%s, Hazard=%s", 
-        vehicle, vehNetId, tostring(leftBlinker), tostring(rightBlinker), tostring(hazardLights)))
-    
-    -- Cache aktualisieren
-    lastVehicleStates[vehicle] = {
-        left = leftBlinker,
-        right = rightBlinker,
-        hazard = hazardLights,
-        lastUpdate = GetGameTimer()
-    }
-    
-    -- Blinker-Update triggern
-    if leftBlinker or rightBlinker or hazardLights then
-        -- Fahrzeug hat aktive Blinker - Thread starten falls noch nicht vorhanden
-        if not activeBlinkerThreads[vehicle] then
-            DebugPrint(string.format("Starte Blinker-Thread für entferntes Fahrzeug %d", vehicle))
-            activeBlinkerThreads[vehicle] = true
-            
-            Citizen.CreateThread(function()
-                local threadLeft = leftBlinker
-                local threadRight = rightBlinker
-                local threadHazard = hazardLights
-                local lastBlinkState = true
-                local lastToggleTime = GetGameTimer()
-                
-                while activeBlinkerThreads[vehicle] and DoesEntityExist(vehicle) do
-                    -- Aktuellen Status aus Cache holen
-                    local cached = lastVehicleStates[vehicle]
-                    if cached then
-                        threadLeft = cached.left
-                        threadRight = cached.right
-                        threadHazard = cached.hazard
-                    end
-                    
-                    -- Prüfen ob noch Blinker aktiv sind
-                    if not (threadLeft or threadRight or threadHazard) then
-                        break
-                    end
-                    
-                    -- Einfaches 500ms Blinktiming für andere Fahrzeuge
-                    local currentTime = GetGameTimer()
-                    if currentTime - lastToggleTime >= 500 then
-                        lastBlinkState = not lastBlinkState
-                        lastToggleTime = currentTime
-                    end
-                    
-                    if threadHazard then
-                        SetVehicleIndicatorLights(vehicle, 0, lastBlinkState) -- Rechts
-                        SetVehicleIndicatorLights(vehicle, 1, lastBlinkState) -- Links
-                    else
-                        SetVehicleIndicatorLights(vehicle, 0, threadRight and lastBlinkState) -- Rechts
-                        SetVehicleIndicatorLights(vehicle, 1, threadLeft and lastBlinkState)  -- Links
-                    end
-                    
-                    Citizen.Wait(50)
-                end
-                
-                -- Thread beendet - Blinker ausschalten
-                activeBlinkerThreads[vehicle] = false
-                SetVehicleIndicatorLights(vehicle, 0, false)
-                SetVehicleIndicatorLights(vehicle, 1, false)
-                DebugPrint(string.format("Blinker-Thread für entferntes Fahrzeug %d beendet", vehicle))
-            end)
-        end
-    else
-        -- Keine Blinker aktiv - Thread stoppen
-        activeBlinkerThreads[vehicle] = false
-        SetVehicleIndicatorLights(vehicle, 0, false)
-        SetVehicleIndicatorLights(vehicle, 1, false)
-    end
-end)
+    -- Diese Funktion ist limitiert, da GTA nicht direkt den Blinker-Status abfragt
+    -- Aber wir können prüfen ob das Fahrzeug "blinkt" - ist aber nicht 100% zuverlässig
+    -- Besser ist die Server-Synchronisation
+    return false, false, false
+end
 
 -- Altes StateBag-System entfernt - durch direktes Event-System ersetzt
 
@@ -746,60 +645,98 @@ Citizen.CreateThread(function()
         if vehicle > 0 and IsGroundVehicle(vehicle) then
             if currentVehicle ~= vehicle then
                 -- Neues Fahrzeug betreten
+                local previousVehicle = currentVehicle
                 currentVehicle = vehicle
                 canControlBlinkers = canControl
                 lastCanControlBlinkers = canControl
-                blinkerState = {left = false, right = false, hazard = false}
-                lastSoundState = false
-                -- Auto-Turn-Off Historie zurücksetzen
-                steeringHistory = {}
-                lastSteeringAngle = 0
-                -- Sound-Loop stoppen bei Fahrzeugwechsel
-                ControlIndicatorSound(false, false)
-                DebugPrint("Neues Fahrzeug betreten: " .. vehicle)
                 
-                -- Status von anderen Spielern im Fahrzeug anfragen
-                local vehNetId = GetSafeNetworkId(vehicle)
-                if vehNetId then
-                    TriggerServerEvent('blinker:requestVehicleState', vehNetId)
-                    DebugPrint(string.format("Status-Anfrage für Fahrzeug NetID %d gesendet", vehNetId))
-                else
-                    DebugPrint("WARNUNG: Kann keine NetworkID für neues Fahrzeug ermitteln")
-                end
-            else
-                -- Gleiches Fahrzeug, nur Berechtigung aktualisieren
-                if canControl ~= lastCanControlBlinkers then
-                    -- Berechtigung hat sich geändert - KEIN Timing-Reset!
-                    canControlBlinkers = canControl
-                    lastCanControlBlinkers = canControl
-                    if canControl then
-                        DebugPrint("Blinker-Berechtigung erhalten")
+                -- Prüfen ob Motor läuft (Blinker könnten noch aktiv sein)
+                local engineRunning = GetIsVehicleEngineRunning(vehicle)
+                
+                if engineRunning then
+                    -- Motor läuft - Status von anderen Spielern anfragen, bevor wir alles zurücksetzen
+                    local vehNetId = GetSafeNetworkId(vehicle)
+                    if vehNetId then
+                        DebugPrint(string.format("Motor läuft - Status-Anfrage für Fahrzeug NetID %d gesendet", vehNetId))
+                        
+                        -- Status-Anfrage senden
+                        TriggerServerEvent('blinker:requestVehicleState', vehNetId)
+                        
+                        -- Backup: Falls niemand antwortet, Status nach 500ms zurücksetzen
+                        local requestTime = GetGameTimer()
+                        Citizen.CreateThread(function()
+                            Citizen.Wait(500)
+                            
+                            -- Prüfen ob wir immer noch im gleichen Fahrzeug sind und keine Antwort erhalten haben
+                            if currentVehicle == vehicle and GetGameTimer() - requestTime >= 500 then
+                                -- Keine Antwort erhalten - aber prüfen ob visuell Blinker aktiv sind
+                                DebugPrint("Keine Status-Antwort erhalten - prüfe visuellen Status")
+                                
+                                -- Falls Status immer noch leer ist, aber wir erwarten dass Blinker aktiv sind
+                                if not (blinkerState.left or blinkerState.right or blinkerState.hazard) then
+                                    DebugPrint("Initialisiere mit leerem Status")
+                                    blinkerState = {left = false, right = false, hazard = false}
+                                    lastSoundState = false
+                                else
+                                    -- Status ist da, aber Sound könnte fehlen - Sound-Check
+                                    local shouldHaveSound = blinkerState.left or blinkerState.right or blinkerState.hazard
+                                    if shouldHaveSound and not lastSoundState then
+                                        DebugPrint("Sound-Backup: Starte Sound für aktive Blinker")
+                                        ControlIndicatorSound(true, false)
+                                        lastSoundState = true
+                                    end
+                                end
+                            end
+                        end)
                     else
-                        DebugPrint("Blinker-Berechtigung verloren")
+                        -- Keine NetworkID - Status zurücksetzen
+                        blinkerState = {left = false, right = false, hazard = false}
+                        lastSoundState = false
                     end
                 else
-                    -- Berechtigung unverändert, nur Variable aktualisieren
-                    canControlBlinkers = canControl
+                    -- Motor aus - Status komplett zurücksetzen
+                    blinkerState = {left = false, right = false, hazard = false}
+                    lastSoundState = false
+                    DebugPrint("Motor aus - Blinker-Status zurückgesetzt")
+                end
+                
+                -- Auto-Turn-Off Historie immer zurücksetzen bei Fahrzeugwechsel
+                steeringHistory = {}
+                lastSteeringAngle = 0
+                ControlIndicatorSound(false, false)
+                DebugPrint(string.format("Fahrzeug betreten: %d (Motor: %s)", vehicle, engineRunning and "AN" or "AUS"))
+            else
+                -- Berechtigung aktualisieren
+                canControlBlinkers = canControl
+                if canControl ~= lastCanControlBlinkers then
+                    lastCanControlBlinkers = canControl
+                    DebugPrint(canControl and "Blinker-Berechtigung erhalten" or "Blinker-Berechtigung verloren")
                 end
             end
         else
             if currentVehicle then
-                -- Fahrzeug wirklich verlassen
+                -- Fahrzeug verlassen - aber nur Status senden wenn wir Kontrolle haben
                 if canControlBlinkers then
                     SetBlinkerState(false, false, false)
                 end
-                -- Sound-Loop IMMER stoppen beim Fahrzeug verlassen (egal ob Kontrolle oder nicht)
-                ControlIndicatorSound(false, false) -- Kein Sync beim Verlassen
-                DebugPrint("Sound-Loop gestoppt beim Fahrzeug verlassen")
+                ControlIndicatorSound(false, false)
                 
-                currentVehicle = nil
-                canControlBlinkers = false
-                lastCanControlBlinkers = false
-                lastSoundState = false
-                -- Auto-Turn-Off Historie zurücksetzen
-                steeringHistory = {}
-                lastSteeringAngle = 0
-                DebugPrint("Fahrzeug verlassen")
+                -- Wichtig: currentVehicle erst später auf nil setzen, damit andere Spieler
+                -- den finalen Status noch empfangen können
+                local vehicleToLeave = currentVehicle
+                
+                -- Status-Reset mit Verzögerung
+                Citizen.SetTimeout(200, function()
+                    currentVehicle = nil
+                    canControlBlinkers = false
+                    lastCanControlBlinkers = false
+                    lastSoundState = false
+                    steeringHistory = {}
+                    lastSteeringAngle = 0
+                    DebugPrint("Fahrzeug verlassen - Status zurückgesetzt")
+                end)
+                
+                DebugPrint("Fahrzeug wird verlassen: " .. vehicleToLeave)
             end
         end
         
@@ -845,6 +782,23 @@ Citizen.CreateThread(function()
                 SendNUIMessage({
                     action = "stopIndicatorLoop"
                 })
+                lastSoundState = false
+            end
+        end
+        
+        -- NEUE PRÜFUNG: Sound-Status mit Blinker-Status synchronisieren
+        if currentVehicle and DoesEntityExist(currentVehicle) then
+            local shouldHaveSound = blinkerState.left or blinkerState.right or blinkerState.hazard
+            
+            -- Sound sollte laufen, tut es aber nicht
+            if shouldHaveSound and not lastSoundState then
+                DebugPrint("Sound-Sync-Fix: Blinker aktiv aber kein Sound - starte Sound")
+                ControlIndicatorSound(true, false)
+                lastSoundState = true
+            -- Sound läuft, sollte aber nicht
+            elseif not shouldHaveSound and lastSoundState then
+                DebugPrint("Sound-Sync-Fix: Kein Blinker aktiv aber Sound läuft - stoppe Sound")
+                ControlIndicatorSound(false, false)
                 lastSoundState = false
             end
         end
@@ -924,45 +878,18 @@ RegisterNetEvent('blinker:playSound')
 AddEventHandler('blinker:playSound', function(soundName, soundType, vehNetId)
     if not Config.Sound.enabled then return end
     
-    -- Zusätzliche Sicherheitsprüfung: Nur Sound abspielen wenn Spieler im entsprechenden Fahrzeug sitzt
+    -- Sicherheitsprüfung: Nur Sound abspielen wenn Spieler im entsprechenden Fahrzeug sitzt
     if vehNetId then
         local vehicle = NetworkGetEntityFromNetworkId(vehNetId)
         local ped = PlayerPedId()
         local playerVehicle = GetVehiclePedIsIn(ped, false)
         
-        -- Prüfen ob Spieler überhaupt in einem Fahrzeug sitzt
-        if playerVehicle == 0 then
-            DebugPrint(string.format("Sound ignoriert - Spieler nicht in Fahrzeug (NetID %d)", vehNetId))
-            -- Sicherheitshalber Sound-Loop stoppen falls einer läuft
-            SendNUIMessage({
-                action = "stopIndicatorLoop"
-            })
-            return
-        end
-        
-        -- Prüfen ob Fahrzeug existiert
-        if not DoesEntityExist(vehicle) then
-            DebugPrint(string.format("Sound ignoriert - Fahrzeug NetID %d existiert nicht", vehNetId))
-            return
-        end
-        
-        -- Prüfen ob es das richtige Fahrzeug ist
-        if vehicle ~= playerVehicle then
-            DebugPrint(string.format("Sound ignoriert - Spieler in anderem Fahrzeug (erwartet NetID %d Fahrzeug %d, in Fahrzeug %d)", vehNetId, vehicle, playerVehicle))
-            return
-        end
-        
-        -- Zusätzliche Prüfung: Ist der Spieler wirklich IM Fahrzeug (nicht nur daneben)?
-        if not IsPedInVehicle(ped, vehicle, false) then
-            DebugPrint(string.format("Sound ignoriert - Spieler nicht IM Fahrzeug %d", vehicle))
-            -- Sicherheitshalber Sound-Loop stoppen falls einer läuft
-            SendNUIMessage({
-                action = "stopIndicatorLoop"
-            })
+        -- Validierung: Spieler muss in richtigem Fahrzeug sein
+        if not DoesEntityExist(vehicle) or playerVehicle ~= vehicle or not IsPedInVehicle(ped, vehicle, false) then
+            DebugPrint(string.format("Sound ignoriert - Spieler nicht im richtigen Fahrzeug (NetID %d)", vehNetId))
             return
         end
     else
-        -- Wenn keine vehNetId übergeben wurde, ignorieren (Sicherheit)
         DebugPrint("Sound ignoriert - keine Fahrzeug-NetID empfangen")
         return
     end
@@ -971,7 +898,6 @@ AddEventHandler('blinker:playSound', function(soundName, soundType, vehNetId)
     
     if soundType == 'loop' then
         if soundName == 'startIndicatorLoop' then
-            -- Indicator-Loop starten (Standard 500ms)
             SendNUIMessage({
                 action = "startIndicatorLoop",
                 sound = Config.Sound.sounds.indicator,
@@ -979,13 +905,11 @@ AddEventHandler('blinker:playSound', function(soundName, soundType, vehNetId)
                 interval = 500
             })
         elseif soundName == 'stopIndicatorLoop' then
-            -- Indicator-Loop stoppen
             SendNUIMessage({
                 action = "stopIndicatorLoop"
             })
         end
     elseif soundType == 'action' then
-        -- Action-Sound abspielen
         SendNUIMessage({
             action = "playSound",
             sound = soundName,
@@ -1094,8 +1018,51 @@ RegisterCommand('blinkerstatus', function()
         return
     end
     
+    local engineRunning = GetIsVehicleEngineRunning(currentVehicle)
     print(string.format("^3[Blinker Status]^7"))
     print(string.format("Fahrzeug: %d", currentVehicle))
+    print(string.format("Motor: %s", engineRunning and "AN" or "AUS"))
+    print(string.format("Berechtigung: %s", canControlBlinkers and "JA" or "NEIN"))
     print(string.format("Links: %s | Rechts: %s | Hazard: %s", 
         tostring(blinkerState.left), tostring(blinkerState.right), tostring(blinkerState.hazard)))
+    print(string.format("Sound aktiv: %s", lastSoundState and "JA" or "NEIN"))
+end, false)
+
+-- Debug Command für Fahrzeug-Status-Anfrage
+RegisterCommand('requeststatus', function()
+    if not currentVehicle then
+        print("^1Fehler: Kein Fahrzeug^7")
+        return
+    end
+    
+    local vehNetId = GetSafeNetworkId(currentVehicle)
+    if vehNetId then
+        print("^3Fordere Status an...^7")
+        TriggerServerEvent('blinker:requestVehicleState', vehNetId)
+    else
+        print("^1Fehler: Keine NetworkID^7")
+    end
+end, false)
+
+-- Debug Command für Sound-Reparatur
+RegisterCommand('fixsound', function()
+    if not currentVehicle then
+        print("^1Fehler: Kein Fahrzeug^7")
+        return
+    end
+    
+    local shouldHaveSound = blinkerState.left or blinkerState.right or blinkerState.hazard
+    
+    if shouldHaveSound then
+        print("^3Repariere Blinker-Sound...^7")
+        ControlIndicatorSound(false, false) -- Erst stoppen
+        Citizen.Wait(100)
+        ControlIndicatorSound(true, false) -- Dann neu starten
+        lastSoundState = true
+        print("^2Sound repariert!^7")
+    else
+        print("^3Keine aktiven Blinker - stoppe Sound^7")
+        ControlIndicatorSound(false, false)
+        lastSoundState = false
+    end
 end, false)
