@@ -80,8 +80,12 @@ Sound-Dateien Quelle: https://www.gta5-mods.com/scripts/advanced-turn-signals
 
 *Wenn dir das Script gefällt und du meine Arbeit unterstützen möchtest, würde ich mich über eine kleine Spende freuen! ☕*
 
-🎮 **GrayZone City Server**
+---
+
+## 🎮 **GrayZone City Server**
+
 Werde Mitglied auf unserem deutschsprachigen FiveM Server!
+
 🌆 **GrayZone City** - Deutschsprachiger Roleplay Server
-💬 Discord: discord.gg/bPSZsjkwaV
+💬 **Discord:** [discord.gg/bPSZsjkwaV](https://discord.gg/bPSZsjkwaV)
 🎯 Realistische Roleplay-Erfahrung mit hochwertigen Scripts
