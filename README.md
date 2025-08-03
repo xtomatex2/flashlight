@@ -79,3 +79,9 @@ Sound-Dateien Quelle: https://www.gta5-mods.com/scripts/advanced-turn-signals
 [![PayPal](https://img.shields.io/badge/PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/aleksanderneumaier)
 
 *Wenn dir das Script gefällt und du meine Arbeit unterstützen möchtest, würde ich mich über eine kleine Spende freuen! ☕*
+
+🎮 **GrayZone City Server**
+Werde Mitglied auf unserem deutschsprachigen FiveM Server!
+🌆 **GrayZone City** - Deutschsprachiger Roleplay Server
+💬 Discord: discord.gg/bPSZsjkwaV
+🎯 Realistische Roleplay-Erfahrung mit hochwertigen Scripts
